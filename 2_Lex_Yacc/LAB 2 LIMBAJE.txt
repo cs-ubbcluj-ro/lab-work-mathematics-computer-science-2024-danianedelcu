@@ -1,0 +1,283 @@
+scanner.l
+%{
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#define MAX_SYMBOLS 100
+#define MAX_TOKENS 100
+
+typedef struct {
+    char type[10];
+    char name[50];
+    int pos;
+} Symbol;
+
+typedef struct {
+    char token[50];
+    int position;
+} PIFEntry;
+
+Symbol symbol_table[MAX_SYMBOLS];
+PIFEntry pif[MAX_TOKENS];
+int symbol_count = 0;
+int pif_count = 0;
+
+void add_to_symbol_table(const char* identifier);
+void add_to_pif(const char* token);
+void report_error(const char* message, int line_number);
+void print_symbol_table();
+void print_pif();
+%}
+
+%option noyywrap
+
+%%
+
+"int"          { add_to_pif("int"); }
+"for"          { add_to_pif("for"); }
+"if"           { add_to_pif("if"); }
+"return"       { add_to_pif("return"); }
+"cout"         { add_to_pif("cout"); }
+"cin"          { add_to_pif("cin"); }
+"else"         { add_to_pif("else") }
+
+"{"            { add_to_pif("{"); }
+"}"            { add_to_pif("}"); }
+"("            { add_to_pif("("); }
+")"            { add_to_pif(")"); }
+";"            { add_to_pif(";"); }
+":"            { add_to_pif(":"); }
+":="           { add_to_pif(":="); }
+"<<"           { add_to_pif("<<"); }
+">>"           { add_to_pif(">>"); }
+"<"            { add_to_pif("<"); }
+"<="           { add_to_pif("<="); }
+">"            { add_to_pif(">"); }
+">="           { add_to_pif(">="); }
+"="            { add_to_pif("="); }
+"+"            { add_to_pif("+"); }
+"-"            { add_to_pif("-"); }
+"*"            { add_to_pif("*"); }
+"/"            { add_to_pif("/"); }
+
+[a-zA-Z_][a-zA-Z0-9_]* {
+    add_to_symbol_table(yytext);
+    add_to_pif(yytext);
+}
+
+[0-9]+         {
+    add_to_symbol_table(yytext);
+    add_to_pif(yytext);
+}
+
+\"([^\\"]|\\.)*\" { add_to_pif(yytext); }
+
+"//".*         { }
+[ \t]+         { }
+\n             { }
+.              { report_error("Invalid token", yylineno); }
+
+%%
+
+void add_to_symbol_table(const char* identifier) {
+    if (strcmp(identifier, "int") == 0 || strcmp(identifier, "for") == 0 ||
+        strcmp(identifier, "if") == 0 || strcmp(identifier, "return") == 0 ||
+        strcmp(identifier, "cout") == 0 || strcmp(identifier, "cin") == 0 ||
+        strcmp(identifier, "else") == 0) {
+        return;
+    }
+
+    for (int i = 0; i < symbol_count; i++) {
+        if (strcmp(symbol_table[i].name, identifier) == 0) {
+            return;
+        }
+    }
+
+    if (isdigit(identifier[0])) {
+        strcpy(symbol_table[symbol_count].type, "const");
+    } else {
+        strcpy(symbol_table[symbol_count].type, "id");
+    }
+
+    strcpy(symbol_table[symbol_count].name, identifier);
+    symbol_table[symbol_count].pos = symbol_count + 1;
+    symbol_count++;
+}
+
+void add_to_pif(const char* token) {
+    int position = 0;
+
+    for (int i = 0; i < symbol_count; i++) {
+        if (strcmp(symbol_table[i].name, token) == 0) {
+            position = symbol_table[i].pos;
+break;
+        }
+    }
+
+    strcpy(pif[pif_count].token, token);
+    pif[pif_count].position = position;
+    pif_count++;
+}
+
+void report_error(const char* message, int line_number) {
+    printf("Lexical Error: %s at line %d\n", message, line_number);
+}
+
+void print_symbol_table() {
+    printf("Symbol Table:\n");
+    for (int i = 0; i < symbol_count; i++) {
+        printf("%s: %s, pos: %d\n", symbol_table[i].type, symbol_table[i].name, symbol_table[i].pos);
+    }
+}
+
+void print_pif() {
+    printf("\nPIF:\n");
+    for (int i = 0; i < pif_count; i++) {
+        printf("token: %s, position in ST: %d\n", pif[i].token, pif[i].position);
+    }
+}
+
+int main(int argc, char **argv) {
+    if (argc > 1) {
+        FILE *file = fopen(argv[1], "r");
+        if (!file) {
+            perror("Error opening file");
+            return EXIT_FAILURE;
+        }
+        yyin = file;
+    }
+    yylex();
+    print_symbol_table();
+    print_pif();
+    return EXIT_SUCCESS;
+}
+
+fact.txt
+int factorial(n: int) {
+    int fact := 1;
+    for(i := 1; i <= n; i := i + 1) {
+        fact := fact * i;
+    }
+    return fact;
+}
+
+int main() {
+    int n;
+    cout << "Enter a positive integer:";
+    cin >> n;
+    if n < 0 {
+        cout << "Factorial is not defined for negative numbers.";
+    } else {
+        int result := factorial(n);
+        cout << "Factorial of " << n << " is: " << result;
+    }
+    return 0;
+}
+
+
+Symbol Table:
+id: factorial, pos: 1
+id: n, pos: 2
+id: fact, pos: 3
+const: 1, pos: 4
+id: i, pos: 5
+id: main, pos: 6
+const: 0, pos: 7
+id: result, pos: 8
+
+PIF:
+token: int, position in ST: 0
+token: id, position in ST: 1
+token: (, position in ST: 0
+token: id, position in ST: 2
+token: :, position in ST: 0
+token: int, position in ST: 0
+token: ), position in ST: 0
+token: {, position in ST: 0
+token: int, position in ST: 0
+token: id, position in ST: 3
+token: :=, position in ST: 0
+token: const, position in ST: 4
+token: ;, position in ST: 0
+token: for, position in ST: 0
+token: (, position in ST: 0
+token: id, position in ST: 5
+token: :=, position in ST: 0
+token: const, position in ST: 4
+token: ;, position in ST: 0
+token: id, position in ST: 5
+token: <=, position in ST: 0
+token: id, position in ST: 2
+token: ;, position in ST: 0
+token: id, position in ST: 5
+token: :=, position in ST: 0
+token: id, position in ST: 5
+token: +, position in ST: 0
+token: const, position in ST: 4
+token: ), position in ST: 0
+token: {, position in ST: 0
+token: id, position in ST: 3
+token: :=, position in ST: 0
+token: id, position in ST: 3
+token: *, position in ST: 0
+token: id, position in ST: 5
+token: ;, position in ST: 0
+token: }, position in ST: 0
+token: return, position in ST: 0
+token: id, position in ST: 3
+token: ;, position in ST: 0
+token: }, position in ST: 0
+token: int, position in ST: 0
+token: id, position in ST: 6
+token: (, position in ST: 0
+token: ), position in ST: 0
+token: {, position in ST: 0
+token: int, position in ST: 0
+token: id, position in ST: 2
+token: ;, position in ST: 0
+token: cout, position in ST: 0
+token: <<, position in ST: 0
+token: string, position in ST: 0
+token: ;, position in ST: 0
+token: cin, position in ST: 0
+token: >>, position in ST: 0
+token: id, position in ST: 2
+token: ;, position in ST: 0
+token: if, position in ST: 0
+token: id, position in ST: 2
+token: <, position in ST: 0
+token: const, position in ST: 7
+token: {, position in ST: 0
+token: cout, position in ST: 0
+token: <<, position in ST: 0
+token: string, position in ST: 0
+token: ;, position in ST: 0
+token: }, position in ST: 0
+token: id, position in ST: 0
+token: else, position in ST: 0
+token: {, position in ST: 0
+token: int, position in ST: 0
+token: id, position in ST: 8
+token: :=, position in ST: 0
+token: id, position in ST: 1
+token: (, position in ST: 0
+token: id, position in ST: 2
+token: ), position in ST: 0
+token: ;, position in ST: 0
+token: cout, position in ST: 0
+token: <<, position in ST: 0
+token: string, position in ST: 0
+token: <<, position in ST: 0
+token: id, position in ST: 2
+token: <<, position in ST: 0
+token: string, position in ST: 0
+token: <<, position in ST: 0
+token: id, position in ST: 8
+token: ;, position in ST: 0
+token: }, position in ST: 0
+token: return, position in ST: 0
+token: const, position in ST: 7
+token: ;, position in ST: 0
+token: }, position in ST: 0
